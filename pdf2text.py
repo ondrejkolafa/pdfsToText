@@ -11,6 +11,7 @@ CURRENT_WORKING_DIRECTORY = os.getcwd()
 RESULTS_PATH = os.path.join(CURRENT_WORKING_DIRECTORY, "results")
 RESULT_JSON_PATH = os.path.join(RESULTS_PATH, "results.json")
 RESULT_EXCEL_PATH = os.path.join(RESULTS_PATH, "results.xlsx")
+TEMP_FILE_PATH = os.path.join(CURRENT_WORKING_DIRECTORY, "temp")
 
 
 def list_pdf_files(directory):
@@ -30,9 +31,11 @@ def clean_results_folder():
             os.remove(file_path)
 
 
-def ensure_results_folder_exists():
+def ensure_needed_folders_exists():
     if not os.path.exists(RESULTS_PATH):
         os.makedirs(RESULTS_PATH)
+    if not os.path.exists(TEMP_FILE_PATH):
+        os.makedirs(TEMP_FILE_PATH)
 
 
 def ocr_file(reader, pdf_file, results_dict):
@@ -46,7 +49,7 @@ def ocr_file(reader, pdf_file, results_dict):
         count += 1
 
     for i in range(count):
-        val = f"temp/image_{i+1}.png"
+        val = os.path.join(TEMP_FILE_PATH, f"image_{i+1}.png")
         page = doc.load_page(i)
         pix = page.get_pixmap(matrix=mat)
         pix.save(val)
@@ -54,7 +57,7 @@ def ocr_file(reader, pdf_file, results_dict):
 
     with open(os.path.join(RESULTS_PATH, f"{pdf_file['name']}.txt"), "w") as f:
         for i in range(count):
-            result = reader.readtext(f"temp/image_{i+1}.png", detail=0)
+            result = reader.readtext(os.path.join(TEMP_FILE_PATH, f"image_{i+1}.png"), detail=0)
             f.write(str(result) + "\n")
             if pdf_file["name"] not in results_dict:
                 results_dict[pdf_file["name"]] = {}
@@ -63,8 +66,8 @@ def ocr_file(reader, pdf_file, results_dict):
             else:
                 results_dict[pdf_file["name"]]["text"] += " ".join(result)
 
-    for file in os.listdir("temp"):
-        file_path = os.path.join("temp", file)
+    for file in os.listdir(TEMP_FILE_PATH):
+        file_path = os.path.join(TEMP_FILE_PATH, file)
         if os.path.isfile(file_path):
             os.remove(file_path)
 
@@ -80,9 +83,6 @@ def write_to_excel(results_dict):
         row_num = 1
         for key, value in results_dict.items():
 
-            print(f"Writing {key} to excel")
-            print(f"Value: {value} of type {type(value)}")
-
             worksheet.write(row_num, 0, key)
             worksheet.write_url(row_num, 1, value["path"])
             worksheet.write(row_num, 2, value["text"])
@@ -95,12 +95,13 @@ def main():
 
     reader = easyocr.Reader(["cs"])
 
-    ensure_results_folder_exists()
+    ensure_needed_folders_exists()
     clean_results_folder()
 
     results_dict = {}
 
     for pdf_file in pdf_files:
+        print("Processing file: {}".format(pdf_file["name"]))
         ocr_file(reader, pdf_file, results_dict)
 
     with open(RESULT_JSON_PATH, "w") as f:
