@@ -9,7 +9,8 @@ PDFS_PATH = "pdfs"
 
 CURRENT_WORKING_DIRECTORY = os.getcwd()
 RESULTS_PATH = os.path.join(CURRENT_WORKING_DIRECTORY, "results")
-RESULT_JSON_PATH = os.path.join(RESULTS_PATH, "results.json")
+RESULT_JSON_NAME = "results.json"
+RESULT_JSON_PATH = os.path.join(RESULTS_PATH, RESULT_JSON_NAME)
 RESULT_EXCEL_PATH = os.path.join(RESULTS_PATH, "results.xlsx")
 TEMP_FILE_PATH = os.path.join(CURRENT_WORKING_DIRECTORY, "temp")
 
@@ -72,6 +73,16 @@ def ocr_file(reader, pdf_file, results_dict):
             os.remove(file_path)
 
 
+def read_results_from_file():
+    with open(RESULT_JSON_PATH, "r") as f:
+        return json.loads(f.read())
+
+
+def save_results_to_file(results_dict):
+    with open(RESULT_JSON_PATH, "w") as f:
+        json.dump(results_dict, f)
+
+
 def write_to_excel(results_dict):
     with xlsxwriter.Workbook(RESULT_EXCEL_PATH) as workbook:
         worksheet = workbook.add_worksheet("Pdf2Text Results")
@@ -89,20 +100,31 @@ def write_to_excel(results_dict):
             row_num += 1
 
 
-def main():
+def main(continue_processing=False):
     pdf_files = list_pdf_files(PDFS_PATH)
     print(pdf_files)
 
     reader = easyocr.Reader(["cs"])
 
     ensure_needed_folders_exists()
-    clean_results_folder()
+    if not continue_processing:
+        clean_results_folder()
 
-    results_dict = {}
+    try:
+        results_dict = read_results_from_file()
+    except:
+        print("No results file found, creating new one")
+        results_dict = {}
 
+    index = 0
     for pdf_file in pdf_files:
-        print("Processing file: {}".format(pdf_file["name"]))
+        index += 1
+        if pdf_file["name"] in results_dict:
+            print(f"Skipping file {index}/{len(pdf_file)} - {pdf_file['name']}")
+            continue
+        print(f"Processing file {index}/{len(pdf_file)} - {pdf_file['name']}")
         ocr_file(reader, pdf_file, results_dict)
+        save_results_to_file(results_dict)
 
     with open(RESULT_JSON_PATH, "w") as f:
         json.dump(results_dict, f)
@@ -112,4 +134,10 @@ def main():
 
 if __name__ == "__main__":
 
-    main()
+    continue_processing = input(f"Would you like to resume reading PDFs files (y/n)?: ")
+    if continue_processing.lower() != "y":
+        continue_processing = False
+    else:
+        continue_processing = True
+
+    main(continue_processing)
